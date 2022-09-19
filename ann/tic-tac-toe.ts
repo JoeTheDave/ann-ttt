@@ -1,4 +1,5 @@
 import * as brain from 'brain.js'
+import { writeFileSync } from 'fs'
 import { shuffle, fill, flatten } from 'lodash'
 
 type AI = brain.NeuralNetwork<number[], number[]>
@@ -144,7 +145,7 @@ const generateOutput = (state: number[], moveSelection: number, outcome: number)
   return output
 }
 
-const net: AI = new brain.NeuralNetwork({ hiddenLayers: [6, 6, 6] })
+const net: AI = new brain.NeuralNetwork({ hiddenLayers: [3] })
 
 for (let x = 1; x <= 1000; x++) {
   console.log(x)
@@ -168,9 +169,10 @@ for (let x = 1; x <= 1000; x++) {
   net.train(trainingData)
 }
 
-const ann = net.toJSON()
-
-console.log(ann)
+writeFileSync(
+  'ann/tictactoeAI.ts',
+  `export ${net.toFunction().toString().replace('anonymous(input', 'tictactoeAI(input: number[]')}`,
+)
 
 console.log(
   net.run(
