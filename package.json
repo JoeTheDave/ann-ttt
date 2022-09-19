@@ -2,10 +2,13 @@
   "private": true,
   "sideEffects": false,
   "scripts": {
-    "build": "remix build",
-    "dev": "remix build && run-p \"dev:*\"",
-    "dev:node": "cross-env NODE_ENV=development nodemon ./server.js --watch ./server.js",
-    "dev:remix": "remix watch",
+    "build": "run-s \"build:*\"",
+    "build:css": "npm run generate:css -- --minify",
+    "build:remix": "remix build",
+    "dev": "run-p \"dev:*\"",
+    "dev:css": "npm run generate:css -- --watch",
+    "dev:remix": "remix dev",
+    "generate:css": "npx tailwindcss -o ./app/tailwind.css",
     "start": "cross-env NODE_ENV=production node ./server.js",
     "ttt-train": "ts-node ./ann/tic-tac-toe.ts"
   },
@@ -32,6 +35,7 @@
     "eslint": "^8.20.0",
     "nodemon": "^2.0.19",
     "npm-run-all": "^4.1.5",
+    "tailwindcss": "^3.1.8",
     "typescript": "^4.7.4"
   },
   "engines": {
