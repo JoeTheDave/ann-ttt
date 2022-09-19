@@ -1,5 +1,17 @@
 import * as brain from 'brain.js'
-import { shuffle, fill } from 'lodash'
+import { shuffle, fill, flatten } from 'lodash'
+
+type AI = brain.NeuralNetwork<number[], number[]>
+
+type Playthrough = {
+  gameStates: {
+    player: number
+    state: number[]
+    probabilityMap: number[] | null
+    moveSelection: number
+  }[]
+  winner: number
+}
 
 // given a current state, determine if there is a winner and return:
 // 1: X won
@@ -68,13 +80,58 @@ const generateRandomPlaythrough = () => {
   return {
     gameStates,
     winner,
-  }
+  } as Playthrough
 }
 
-const flipStatePlayers = (state: number[]) => state.map(m => (m === 0 ? 0 : m === 1 ? -1 : 1))
+const conductIntelligentPlaythrough = (net: AI) => {
+  const gameStates = []
+  let player = 1
+  let state = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+  let winner = null
+  do {
+    let probabilityMap = player === 1 ? net.run(state) : net.run(flipStatePlayers(state))
+    // if (typeof probabilityMap === 'object') {
+    //   probabilityMap = Object.values(probabilityMap)
+    // }
 
-const generateOutput = (moveSelection: number, outcome: number) => {
+    const { index: moveSelection } = probabilityMap
+      .map((value, index) => (state[index] === 0 ? value : 0))
+      .reduce(
+        (highestIndex, probability, index) => {
+          if (probability > highestIndex.probability) {
+            highestIndex = { index, probability }
+          }
+          return highestIndex
+        },
+        { index: -1, probability: 0 },
+      )
+
+    gameStates.push({
+      player,
+      state: [...state],
+      probabilityMap,
+      moveSelection,
+    })
+    state[moveSelection] = player
+    player = player === 1 ? -1 : 1
+    winner = isWinner(state)
+  } while (winner === null)
+  return {
+    gameStates,
+    winner,
+  } as Playthrough
+}
+
+// const flipStatePlayers = (state: number[]) => state.map(m => (m === 0 ? 0 : m === 1 ? -1 : 1))
+const flipStatePlayers = (state: number[]) => state.map(m => m * -1 + 0)
+
+const generateOutput = (state: number[], moveSelection: number, outcome: number) => {
   const output = fill(new Array(9), 0.5)
+  for (let x = 0; x < state.length; x++) {
+    if (state[x] !== 0) {
+      output[x] = 0
+    }
+  }
   if (outcome === 1) {
     output[moveSelection] = 0.9
   }
@@ -87,26 +144,40 @@ const generateOutput = (moveSelection: number, outcome: number) => {
   return output
 }
 
-const net = new brain.NeuralNetwork({ hiddenLayers: [3] })
+const net: AI = new brain.NeuralNetwork({ hiddenLayers: [6, 6, 6] })
 
-const playthrough = generateRandomPlaythrough()
-const xTurns = playthrough.gameStates
-  .filter(s => s.player === 1)
-  .map(s => ({ state: s.state, moveSelection: s.moveSelection }))
-const oTurns = playthrough.gameStates
-  .filter(s => s.player === -1)
-  .map(s => ({ state: flipStatePlayers(s.state), moveSelection: s.moveSelection }))
+for (let x = 1; x <= 1000; x++) {
+  console.log(x)
+  const playthrough: Playthrough = x === 1 ? generateRandomPlaythrough() : conductIntelligentPlaythrough(net)
+  const xTurns = playthrough.gameStates.filter(s => s.player === 1)
+  // .map(s => ({ state: s.state, moveSelection: s.moveSelection }))
+  const oTurns = playthrough.gameStates.filter(s => s.player === -1)
+  // .map(s => ({ state: flipStatePlayers(s.state), moveSelection: s.moveSelection }))
 
-const trainingData = [
-  ...xTurns.map(xTurn => ({ input: xTurn.state, output: generateOutput(xTurn.moveSelection, playthrough.winner) })),
-  ...oTurns.map(oTurn => ({
-    input: oTurn.state,
-    output: generateOutput(oTurn.moveSelection, playthrough.winner * -1),
-  })),
-]
+  const trainingData = [
+    ...xTurns.map(xTurn => ({
+      input: xTurn.state,
+      output: generateOutput(xTurn.state, xTurn.moveSelection, playthrough.winner),
+    })),
+    ...oTurns.map(oTurn => ({
+      input: oTurn.state,
+      output: generateOutput(oTurn.state, oTurn.moveSelection, playthrough.winner * -1),
+    })),
+  ]
 
-// console.log(trainingData)
+  net.train(trainingData)
+}
 
-net.train(trainingData)
+const ann = net.toJSON()
 
-console.log(net.run([0, 0, 0, 0, 0, 0, 0, 0, 0]))
+console.log(ann)
+
+console.log(
+  net.run(
+    flatten([
+      [1, -1, 0],
+      [0, 1, 0],
+      [-1, -1, 0],
+    ]),
+  ),
+)
